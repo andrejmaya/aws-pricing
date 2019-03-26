@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Parameters: 
+  BucketAndFunctionNameParameter:
+    Type: String
+Resources:    
+#  PricingBucket:
+#    Type: AWS::S3::Bucket
+#    Properties:
+#      AccessControl: PublicRead
+#      BucketName: 
+#        Ref: BucketAndFunctionNameParameter
+  PricingBucketPolicy: 
+    Type: AWS::S3::BucketPolicy
+    Properties: 
+      Bucket: 
+        Ref: "BucketAndFunctionNameParameter"
+      PolicyDocument: 
+        Statement: 
+          - 
+            Action: 
+              - "s3:GetObject"
+            Effect: "Allow"
+            Resource: 
+              Fn::Join:
+              - ''
+              - - 'arn:aws:s3:::'
+                - Ref: BucketAndFunctionNameParameter
+                - /*
+            Principal: "*"
+  PricingRole:
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/"
+      Policies: 
+        - PolicyName: "root"
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: "Allow"
+                Action: 
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+              - Effect: "Allow"
+                Action: 
+                  - "s3:PutObject"
+                  - "s3:PutObjectAcl"
+                Resource:
+                  Fn::Join:
+                  - ''
+                  - - 'arn:aws:s3:::'
+                    - Ref: BucketAndFunctionNameParameter
+                    - /*                 
+  PricingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./src
+      FunctionName: 
+        Ref: BucketAndFunctionNameParameter
+      Handler: awsPricing.lambda_handler
+      Environment:
+        Variables:
+          BUCKET_NAME: 
+            Ref: BucketAndFunctionNameParameter
+      Runtime: python2.7
+      MemorySize: 674
+      Timeout: 65
+      Role: !GetAtt PricingRole.Arn
+  PricingLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt 
+        - PricingFunction
+        - Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: sns.amazonaws.com
+      SourceArn: arn:aws:sns:us-east-1:278350005181:price-list-api                                
+  PricingSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt 
+        - PricingFunction
+        - Arn
+      Protocol: lambda
+      TopicArn: arn:aws:sns:us-east-1:278350005181:price-list-api

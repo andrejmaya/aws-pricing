@@ -1,0 +1,5 @@
+.pytest_cache
+*.pyc
+.DS_Store
+cf-template.yaml
+outputfile.txt
